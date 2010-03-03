@@ -295,58 +295,20 @@ static void match(char *buf, unsigned int line, struct ctx *ctx,
 
 static void proceed(struct ctx *ctx)
 {
-  int i,line,fd;
-  size_t length;
-  ssize_t c;
-  char *start;
-  register char *buf = xmalloc(R_SIZE);
-  char *str = xmalloc(STRLEN_MAX);
-  char *ibuf = buf;
-  char *istr = str;
+  register int line;
+  int i;
+  FILE *fp;
+  char buf[STRLEN_MAX];
   if(ctx->stdin)
     for(line = 1 ; fgets(buf,STRLEN_MAX,stdin) ; line++)
       match(buf,line,ctx,"stdin");
   for(i = 0 ; i < ctx->npath ; i++) {
-    fd = open(ctx->path[i],O_RDONLY|O_NDELAY);
-    if(!fd)
+    fp = fopen(ctx->path[i],"r");
+    if(!fp)
       error(ERR_LOAD,ctx->path[i],0);
-
-    line = 1;
-    while(c = read(fd,buf,R_SIZE)) {
-      start = ibuf;
-      while(c--) {
-        if(*buf == '\n') {
-          *buf = '\0';
-          /* FIXME: that's quit ugly */
-          length = buf - start;
-          if(start == ibuf) {
-            if(str - istr + length < STRLEN_MAX)
-              memcpy(str,start,length);
-            else
-              error(ERR_PARSE,ctx->path[i],line);
-            /* TODO: progress */
-            match(istr,line,ctx,ctx->path[i]);
-            str = istr;
-          }
-          else
-            match(start,line,ctx,ctx->path[i]);
-          line++;
-          start = buf + 1;
-        }
-        buf++;
-      }
-      length = buf - start;
-      if(str - istr + length < STRLEN_MAX) {
-        memcpy(str,start,length);
-        str += length;
-      }
-      else
-        error(ERR_PARSE,ctx->path[i],line);
-      buf = ibuf;
-    }
-    free(ibuf);
-    free(istr);
-    close(fd);
+    for(line = 1 ; fgets(buf,STRLEN_MAX,fp) ; line++)
+      match(buf,line,ctx,ctx->path[i]);
+    fclose(fp);
   }
 }
 
@@ -559,7 +521,7 @@ static void cmdline(int argc, char *argv[], struct ctx *ctx)
     "Show progression.",
     "Read from stdin.",
   };
-  struct stat info;
+/*  struct stat info;*/
   struct option *opt;
   const char **hlp;
   int i,c,max,size;
@@ -618,8 +580,8 @@ static void cmdline(int argc, char *argv[], struct ctx *ctx)
   ctx->path = xmalloc(sizeof(const char *)*ctx->npath);
   for(i = optind ; i < argc ; i++) {
     /* TODO: check for error */
-    stat(argv[i],&info);
-    ctx->size += info.st_size;
+    /*stat(argv[i],&info);
+      ctx->size += info.st_size;*/
     ctx->path[i-optind] = argv[i];
   }
 }
