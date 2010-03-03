@@ -21,6 +21,10 @@
 #include <string.h>
 #include <getopt.h>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include "config.h"
 
 #define VERSION      "0.1.5-git"
@@ -44,33 +48,46 @@ enum error { ERR_PARSE, ERR_MEMORY, ERR_LOAD };
 #define ULL_MAX (unsigned long long)(-1LL)
 #endif /* ULL_MAX */
 
+/* type of request */
 struct type
 {
-  char *name;
-  struct stats *sum;
+  char *name;        /* defined in srs file */
+  struct stats *sum; /* stats for each status */
   struct type *next;
 };
 
+/* statistics for a specific status */
 struct stats
 {
-  unsigned long long occ;
-  unsigned long long sz;
-  unsigned long long msec;
-  char *srs;
-  const struct type *type;
+  /* stats */
+  unsigned long long occ;  /* nb of req. */
+  unsigned long long sz;   /* total size of req. */
+  unsigned long long msec; /* total time of req. */
+
+  /* id */
+  char *srs;         /* squid request status */
+  const struct type *type; /* parent type */
   struct stats *next;
 };
 
+/* squidward context */
 struct ctx
 {
+  /* data */
   struct type *types;
   struct stats *stats;
-  const char **path;
+
+  /* cmdline args */
+  const char **path;    /* files to parse */
   const char *progname;
-  const char *srspath;
-  size_t npath;
-  size_t size;
-  size_t done;
+  const char *srspath;  /* path the the srs file */
+  size_t npath;         /* nb of files to parse */
+
+  /* progression */
+  size_t size;          /* nb of bytes to parse */
+  size_t done;          /* nb of bytes already parsed */
+
+  /* cmdline flags */
   bool empty;
   bool unk;
   bool human;
@@ -84,15 +101,19 @@ struct show
   const char *name;
   const char *unit;
   const void *value;
+
+  /* display helper */
   void (*func)(const struct ctx *, const char *, const void *);
 };
 
+/* prefix (Kilo, Mega, ...) */
 struct prefix
 {
-  const char *prefix;
-  unsigned long long value;
+  const char *prefix;       /* notation */
+  unsigned long long value; /* factor */
 };
 
+/* error handling */
 static void error(int error, const char * path, unsigned int line)
 {
   switch(error) {
@@ -121,10 +142,12 @@ static void *_xmalloc(size_t size, unsigned int line)
   if(mblk)
     return mblk;
   error(ERR_MEMORY, __FILE__, line);
-  return NULL;
+  return NULL; /* avoid a warning from the compiler */
 }
 #define xmalloc(size) _xmalloc(size,__LINE__)
 
+
+/* split a string into an array of token */
 static size_t tokenize(char *str, char **token, const char *sep, size_t size)
 {
   unsigned int i;
@@ -139,6 +162,7 @@ static size_t tokenize(char *str, char **token, const char *sep, size_t size)
   return i;
 }
 
+/* add statistic to one type */
 static struct stats *add_stats(const char *srs, const struct type *type,
                                struct ctx *ctx)
 {
@@ -147,12 +171,13 @@ static struct stats *add_stats(const char *srs, const struct type *type,
   memset(new,0x00,sizeof(struct stats));
   new->next = old;
   new->type = type;
-  new->srs  = xmalloc(strlen(srs)+1);
+  new->srs  = xmalloc(strlen(srs));
   strcpy(new->srs,srs);
   ctx->stats = new;
   return new;
 }
 
+/* add type from srs file */
 static struct type *add_type(const char *type, struct ctx *ctx)
 {
   struct type *old = ctx->types;
@@ -160,7 +185,7 @@ static struct type *add_type(const char *type, struct ctx *ctx)
   struct stats *sum = xmalloc(sizeof(struct stats));
   memset(sum,0x00,sizeof(struct stats));
   new->next = old;
-  new->name = xmalloc(strlen(type)+1);
+  new->name = xmalloc(strlen(type));
   strcpy(new->name,type);
   ctx->types = new;
   sum->type = new;
@@ -169,6 +194,7 @@ static struct type *add_type(const char *type, struct ctx *ctx)
   return new;
 }
 
+/* parse a line from the srs file */
 #define assert_srtk(token, size) (size == SRTK_MAX)
 static void parse_srs(char *buf, unsigned int line, struct ctx *ctx)
 {
@@ -177,48 +203,51 @@ static void parse_srs(char *buf, unsigned int line, struct ctx *ctx)
   char *tk_srs,*tk_type;
   if(!assert_srtk(token,tked))
     error(ERR_PARSE,ctx->srspath,line);
-  tk_srs  = token[SRTK_SRS];
-  tk_type = token[SRTK_TYPE];
-  struct type *i;
+  tk_srs  = token[SRTK_SRS];  /* squid request status */
+  tk_type = token[SRTK_TYPE]; /* type name */
+
+  /* add type if it doesn't exit */
+  register struct type *i;
   for(i = ctx->types ; i ; i = i->next)
     if(!strcmp(tk_type,i->name))
       break;
   if(!i)
     i = add_type(tk_type,ctx);
+
+  /* add associated stat to type
+     specified in that line */
   add_stats(tk_srs,i,ctx);
 }
 
+/* load squid request status file */
 static void load_ctx(struct ctx *ctx)
 {
   FILE *fp = fopen(ctx->srspath,"r");
   if(!fp)
     error(ERR_LOAD,ctx->srspath,0);
   char buf[STRLEN_MAX];
-  unsigned int line;
+
+  /* parse each line */
+  register unsigned int line;
   for(line = 1 ; fgets(buf,STRLEN_MAX,fp) ; line++)
     parse_srs(buf,line,ctx);
   fclose(fp);
 }
 
+/* initialize context with default option */
 static void init_ctx(struct ctx *ctx, const char *progname,
                      const char *srspath)
 {
-  ctx->stats    = NULL;
-  ctx->types    = NULL;
-  ctx->empty    = false;
-  ctx->unk      = false;
+  /* everything else is 0 or NULL */
+  memset(ctx,0x00,sizeof(struct ctx));
   ctx->srspath  = srspath;
   ctx->progname = progname;
-  ctx->size     = 0;
-  ctx->done     = 0;
-  ctx->progress = false;
-  ctx->human    = false;
-  ctx->stdin    = false;
-  ctx->color    = false;
 }
 
+/* free types list */
 static void free_types(struct type *i)
 {
+  /* FIXME: stack overflow */
   if(!i)
     return;
   free_types(i->next);
@@ -227,8 +256,10 @@ static void free_types(struct type *i)
   free(i);
 }
 
+/* free stats list */
 static void free_stats(struct stats *i)
 {
+  /* FIXME: stack overflow */
   if(!i)
     return;
   free_stats(i->next);
@@ -236,6 +267,7 @@ static void free_stats(struct stats *i)
   free(i);
 }
 
+/* cleanup context */
 static void free_ctx(struct ctx *ctx)
 {
   free_stats(ctx->stats);
@@ -243,6 +275,7 @@ static void free_ctx(struct ctx *ctx)
   free(ctx->path);
 }
 
+/* append an occurence */
 static void append(struct stats *stat, unsigned long long sz,
                    unsigned long long msec)
 {
@@ -251,6 +284,7 @@ static void append(struct stats *stat, unsigned long long sz,
   stat->msec += msec;
 }
 
+/* append an occurence to a total type */
 static void sum(struct stats *stat, unsigned long long occ,
                 unsigned long long sz, unsigned long long msec)
 {
@@ -259,6 +293,7 @@ static void sum(struct stats *stat, unsigned long long occ,
   stat->msec += msec;
 }
 
+/* parse a line from log file */
 #define assert_sltk(token, size) (size == SLTK_MAX)
 static void match(char *buf, unsigned int line, struct ctx *ctx,
                   const char *path)
@@ -269,11 +304,14 @@ static void match(char *buf, unsigned int line, struct ctx *ctx,
   unsigned long tk_sz, tk_msec;
   if(!assert_sltk(token,tked))
     error(ERR_PARSE,path,line);
-  tk_srs  = strtok(token[SLTK_SRS],"/");
-  tk_sz   = atoi(token[SLTK_SZ]);
-  tk_msec = atoi(token[SLTK_MSEC]);
+  tk_srs  = strtok(token[SLTK_SRS],"/"); /* squid request status */
+  tk_sz   = atoi(token[SLTK_SZ]);        /* request size */
+  tk_msec = atoi(token[SLTK_MSEC]);      /* request time */
+
   if(!tk_srs)
     error(ERR_PARSE,path,line);
+
+  /* append request to the first matching stat */
   struct stats *i;
   for(i = ctx->stats ; i ; i = i->next) {
     if(!strcmp(tk_srs,i->srs)) {
@@ -281,35 +319,48 @@ static void match(char *buf, unsigned int line, struct ctx *ctx,
       return;
     }
   }
+
+  /* if it doesn't exist create a new one */
   i = add_stats(tk_srs,NULL,ctx);
   append(i,tk_sz,tk_msec);
 }
 
+/* parse each log files specified */
 static void proceed(struct ctx *ctx)
 {
-  register int line;
+  register unsigned int line;
   int i;
   FILE *fp;
   char buf[STRLEN_MAX];
+
+  /* use stdin as specified */
   if(ctx->stdin)
     for(line = 1 ; fgets(buf,STRLEN_MAX,stdin) ; line++)
       match(buf,line,ctx,"stdin");
+
+  /* proceed each files for parsing */
   for(i = 0 ; i < ctx->npath ; i++) {
     fp = fopen(ctx->path[i],"r");
     if(!fp)
       error(ERR_LOAD,ctx->path[i],0);
+
+    /* parse each line */
     for(line = 1 ; fgets(buf,STRLEN_MAX,fp) ; line++)
       match(buf,line,ctx,ctx->path[i]);
+
     fclose(fp);
   }
 }
 
+/* display helper for colored output */
 static void cl(const struct ctx *ctx, enum color color)
 { if(ctx->color) printf("\033[%dm",color); }
 
+/* display specific results */
 static void show_disp(const struct ctx *ctx,
                       const struct show *disp, size_t max)
 {
+  /* simplified output just show the value */
   if(!ctx->human) {
     printf(" ");
     cl(ctx,CL_VALUE);
@@ -317,11 +368,15 @@ static void show_disp(const struct ctx *ctx,
     cl(ctx,CL_RESET);
     return;
   }
-  size_t i;
+
   cl(ctx,CL_NAME);
   printf("  %s",disp->name);
+
+  /* padding */
+  register size_t i;
   for(i = strlen(disp->name) ; i <= max ; i++)
     printf(" ");
+
   printf(": ");
   cl(ctx,CL_RESET);
   cl(ctx,CL_VALUE);
@@ -330,17 +385,22 @@ static void show_disp(const struct ctx *ctx,
   printf("\n");
 }
 
+/* display helper for string */
 static void show_str(const struct ctx *ctx, const char *unit,
                      const void *value)
 { printf("%s",(const char*)value); }
 
+/* display helper for unsigned long long */
 static void show_llu(const struct ctx *ctx, const char *unit,
                      const void *value)
 {
+  /* simplified output just show the value as is */
   if(!ctx->human) {
     printf("%llu",LLU_T(value));
     return;
   }
+
+  /* show prefix */
   struct prefix pref[] =
     {
       {"", 1LL},
@@ -350,7 +410,7 @@ static void show_llu(const struct ctx *ctx, const char *unit,
       {"T",1000000000000LL},
       {NULL,ULL_MAX}
     };
-  struct prefix *i = pref+1;
+  register struct prefix *i = pref+1;
   if(LLU_T(value) < i->value) {
     printf("%llu %s",LLU_T(value),unit);
     return;
@@ -366,14 +426,17 @@ static void show_llu(const struct ctx *ctx, const char *unit,
   }
 }
 
+/* display helper for time */
 static void show_time(const struct ctx *ctx, const char *unit,
                       const void *value)
 {
+  /* simplified output just show the value as is */
   if(!ctx->human) {
     printf("%f",DBL_T(value));
     return;
   }
-  struct prefix *i;
+
+  /* show time prefix */
   struct prefix pref[] =
     {
       {"seconds",1LL},
@@ -385,6 +448,7 @@ static void show_time(const struct ctx *ctx, const char *unit,
       {"years",31536000LL},
       {NULL,ULL_MAX},
     };
+  register struct prefix *i;
   for(i = pref ; i->prefix ; i++) {
     if(DBL_T(value) < (double)(i+1)->value) {
       printf("%2.1f %s%s",
@@ -396,14 +460,17 @@ static void show_time(const struct ctx *ctx, const char *unit,
   }
 }
 
+/* display helper for double */
 static void show_double(const struct ctx *ctx, const char *unit,
                         const void *value)
 {
+  /* simplified output show value as is */
   if(!ctx->human) {
     printf("%f",DBL_T(value));
     return;
   }
-  struct prefix *i;
+
+  /* show prefix */
   struct prefix pref[] =
     {
       {"",1LL},
@@ -413,6 +480,7 @@ static void show_double(const struct ctx *ctx, const char *unit,
       {"T",1000000000000LL},
       {NULL,ULL_MAX},
     };
+  register struct prefix *i;
   for(i = pref ; i->prefix ; i++) {
     if(DBL_T(value) < (double)(i+1)->value) {
       printf("%2.1f %s%s",
@@ -424,6 +492,7 @@ static void show_double(const struct ctx *ctx, const char *unit,
   }
 }
 
+/* display helper for title */
 static void show_title(const struct ctx *ctx, const char *title)
 {
   if(!ctx->human)
@@ -433,17 +502,22 @@ static void show_title(const struct ctx *ctx, const char *title)
   cl(ctx,CL_RESET);
 }
 
+/* display statistics */
 static void show_stats(const struct ctx *ctx, const struct stats *stat)
 {
+  /* depending on selected options
+     some statistics should not be
+     displayed */
   if((!ctx->unk && !stat->type && stat->next) ||
      (!ctx->empty && !stat->occ))
     return;
+
   size_t max = 0;
   size_t size;
   double sec = (double)stat->msec/1000;
   double avg_speed = stat->msec ? stat->sz/sec : -1;
   double avg_reqsz = stat->occ ? (double)stat->sz/stat->occ : -1;
-  const struct show *i;
+
   const struct show disp[] =
     {
       {"Type","",stat->type ? stat->type->name : "UNKNOWN",show_str},
@@ -454,6 +528,7 @@ static void show_stats(const struct ctx *ctx, const struct stats *stat)
       {"Average request size","Bpr",&avg_reqsz,show_double},
       {NULL,NULL,NULL,NULL}
     };
+  register const struct show *i;
   cl(ctx,CL_SRS);
   printf(ctx->human ? " %s\n" : "%s",stat->srs);
   cl(ctx,CL_RESET);
@@ -467,12 +542,16 @@ static void show_stats(const struct ctx *ctx, const struct stats *stat)
   printf("\n");
 }
 
+/* display results */
 static void show(struct ctx *ctx)
 {
-  struct stats *i;
-  struct type  *j;
+  /* define default stats for
+     unknown and total type */
   struct stats unk   = {0,0,0,"UNKNOWN",NULL,NULL};
   struct stats total = {0,0,0,"TOTAL",NULL,NULL};
+
+  /* display user stats */
+  register struct stats *i;
   show_title(ctx,"RESULTS");
   for(i = ctx->stats ; i ; i = i->next) {
     show_stats(ctx,i);
@@ -480,6 +559,9 @@ static void show(struct ctx *ctx)
         i->occ,i->sz,i->msec);
     sum(&total,i->occ,i->sz,i->msec);
   }
+
+  /* display default stats */
+  register struct type *j;
   show_title(ctx,"SUM");
   for(j = ctx->types ; j ; j = j->next)
     show_stats(ctx,j->sum);
@@ -487,6 +569,7 @@ static void show(struct ctx *ctx)
   show_stats(ctx,&total);
 }
 
+/* parse command line */
 static void cmdline(int argc, char *argv[], struct ctx *ctx)
 {
   struct option opts[] =
@@ -502,6 +585,8 @@ static void cmdline(int argc, char *argv[], struct ctx *ctx)
     {"stdin", no_argument, 0, 's'},
     {NULL,0,0,0}
   };
+
+  /* help message */
   const char *opts_help[] = {
     "Print version information.",
     "Print this message.",
@@ -513,7 +598,7 @@ static void cmdline(int argc, char *argv[], struct ctx *ctx)
     "Show progression.",
     "Read from stdin.",
   };
-/*  struct stat info;*/
+  struct stat info;
   struct option *opt;
   const char **hlp;
   int i,c,max,size;
@@ -548,6 +633,7 @@ static void cmdline(int argc, char *argv[], struct ctx *ctx)
         break;
       case 'h':
       default:
+        /* display usage */
         fprintf(stderr,"Usage: %s [OPTIONS] [FILES]\n", ctx->progname);
         max = 0;
         for(opt = opts ; opt->name; opt++) {
@@ -565,30 +651,42 @@ static void cmdline(int argc, char *argv[], struct ctx *ctx)
             fprintf(stderr," ");
           fprintf(stderr," %s\n",*hlp);
         }
+        /* FIXME: clean output */
         exit(EXIT_FAILURE);
     }
   }
+
+  /* consider remaining arguments
+     as file to parse */
   ctx->npath = argc-optind;
   ctx->path = xmalloc(sizeof(const char *)*ctx->npath);
   for(i = optind ; i < argc ; i++) {
-    /* TODO: check for error */
-    /*stat(argv[i],&info);
-      ctx->size += info.st_size;*/
+    /* FIXME: check for error */
+    stat(argv[i],&info);
+    ctx->size += info.st_size;
     ctx->path[i-optind] = argv[i];
   }
 }
 
 int main(int argc, char *argv[])
 {
-  struct ctx ctx;
+  struct ctx ctx; /* create context */
+
+  /* retrieve program's name */
   const char *progname;
   progname = (const char *)strrchr(argv[0],'/');
   progname = progname ? (progname + 1) : argv[0];
+
+  /* initialization stuff */
   init_ctx(&ctx,progname,SRS_PATH);
   cmdline(argc,argv,&ctx);
   load_ctx(&ctx);
+
+  /* proceed and show results */
   proceed(&ctx);
   show(&ctx);
+
+  /* clean up */
   free_ctx(&ctx);
   exit(EXIT_SUCCESS);
 }

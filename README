@@ -1,6 +1,7 @@
 Squidward is a simple tool for analyzing squid's log files. Unlike most of its competitors, it does not generate reports, but instead displays results directly to the standard output; either in an easily parseable format for other scripts or in a human readable form to gain a quick overview about proxy server's traffic and cache usage. Moreover it is coded in C and has no dependencies. It is distributed under the terms of the GNU General Public License version 3.
 
 TODOs
+   - Static srs file
    - Use mmap (and threads?)
    - Color goes in configuration file
    - Show progression
