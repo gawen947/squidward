@@ -1,6 +1,6 @@
 /* File: squidward.c
 
-   Copyright (C) 2008-2009 David Hauweele <david.hauweele@gmail.com>
+   Copyright (C) 2008-2010 David Hauweele <david.hauweele@gmail.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,15 +22,6 @@
 #include <getopt.h>
 
 #include "config.h"
-
-/*
-   - Use mmap (and threads?)
-   - Color goes in configuration file
-   - Show progression
-   (- Show top site list (from total))
-   (- Show top client (from total))
-   (- Decompress on the fly)
-*/
 
 #define VERSION      "0.1.5-git"
 #define PACKAGE      "squidward"
@@ -130,6 +121,7 @@ static void *_xmalloc(size_t size, unsigned int line)
   if(mblk)
     return mblk;
   error(ERR_MEMORY, __FILE__, line);
+  return NULL;
 }
 #define xmalloc(size) _xmalloc(size,__LINE__)
 
@@ -514,7 +506,7 @@ static void cmdline(int argc, char *argv[], struct ctx *ctx)
     "Print version information.",
     "Print this message.",
     "Show human readable results.",
-    "Select the file containing squid request stats.",
+    "Select the file containing squid request status.",
     "Use colors to show results.",
     "Show empty stats too.",
     "Show unknown stats too.",
