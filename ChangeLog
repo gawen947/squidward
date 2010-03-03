@@ -1,0 +1,16 @@
+* David Hauweele <david.hauweele@gmail.com>
+  - Fix NULL pointer dereference in file parsing
+
+* Sat Jan 24 2009 David Hauweele <david.hauweele@gmail.com>
+  - Load squid request status and types from an external file
+  - Show unkown requests
+  - Added and changed some options
+  - Multiple file support
+  - Release 0.1.4
+
+* Sun Jan 4 2009 David Hauweele <david.hauweele@gmail.com>
+  - Fix a little bug with color option
+  - Release 0.1.3
+
+* Wed Dec 31 2008  David Hauweele <david.hauweele@gmail.com>
+  - Release 0.1.2
