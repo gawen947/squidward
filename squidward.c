@@ -245,26 +245,24 @@ static void init_ctx(struct ctx *ctx, const char *progname,
 }
 
 /* free types list */
-static void free_types(struct type *i)
+static void free_types(struct type *list)
 {
-  /* FIXME: stack overflow */
-  if(!i)
-    return;
-  free_types(i->next);
-  free(i->name);
-  free(i->sum);
-  free(i);
+  register struct type *l;
+  for(l = list ; l ; l = l->next) {
+    free(l->name);
+    free(l->sum);
+    free(l);
+  }
 }
 
 /* free stats list */
-static void free_stats(struct stats *i)
+static void free_stats(struct stats *list)
 {
-  /* FIXME: stack overflow */
-  if(!i)
-    return;
-  free_stats(i->next);
-  free(i->srs);
-  free(i);
+  register struct stats *l;
+  for(l = list ; l ; l = l->next) {
+    free(l->srs);
+    free(l);
+  }
 }
 
 /* cleanup context */
@@ -651,7 +649,7 @@ static void cmdline(int argc, char *argv[], struct ctx *ctx)
             fprintf(stderr," ");
           fprintf(stderr," %s\n",*hlp);
         }
-        /* FIXME: clean output */
+        /* FIXME: clean exit */
         exit(EXIT_FAILURE);
     }
   }
