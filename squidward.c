@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <math.h>
 #include <getopt.h>
 
 #include <sys/types.h>
@@ -39,6 +40,8 @@ enum sltk  { SLTK_MSEC = 1, SLTK_SRS = 3, SLTK_SZ = 4 };
 enum srtk  { SRTK_SRS, SRTK_TYPE };
 enum color { CL_RESET, CL_SRS = 31, CL_NAME = 0, CL_VALUE = 1, CL_TITLE = 32 };
 enum error { ERR_PARSE, ERR_MEMORY, ERR_LOAD };
+
+#define PCT_EPS 1.
 
 #define TYPE(type,pointer) *((type *)pointer)
 #define LLU_T(pointer) TYPE(unsigned long long,pointer)
@@ -86,6 +89,7 @@ struct ctx
   /* progression */
   size_t size;          /* nb of bytes to parse */
   size_t done;          /* nb of bytes already parsed */
+  size_t o_pct;         /* old progression */
 
   /* cmdline flags */
   bool empty;
@@ -145,7 +149,6 @@ static void *_xmalloc(size_t size, unsigned int line)
   return NULL; /* avoid a warning from the compiler */
 }
 #define xmalloc(size) _xmalloc(size,__LINE__)
-
 
 /* split a string into an array of token */
 static size_t tokenize(char *str, char **token, const char *sep, size_t size)
@@ -238,7 +241,7 @@ static void load_ctx(struct ctx *ctx)
 static void init_ctx(struct ctx *ctx, const char *progname,
                      const char *srspath)
 {
-  /* everything else is 0 or NULL */
+  /* everything else is 0, NULL or false */
   memset(ctx,0x00,sizeof(struct ctx));
   ctx->srspath  = srspath;
   ctx->progname = progname;
@@ -323,6 +326,34 @@ static void match(char *buf, unsigned int line, struct ctx *ctx,
   append(i,tk_sz,tk_msec);
 }
 
+/* show parsing progression*/
+static void show_prog(struct ctx *ctx)
+{
+  size_t pct,space;
+  if(!ctx->progress)
+    return;
+  if(!ctx->human) {
+    printf("%d/%d\r",ctx->done,ctx->size);
+    return;
+  }
+
+  pct = (100 * ctx->done) / ctx->size;
+  if(pct > ctx->o_pct) {
+    ctx->o_pct = pct;
+    space = 100 - pct;
+    printf("%d%% [",pct);
+    while(pct--)
+      printf("=");
+    printf(">");
+    while(space--)
+      printf(" ");
+    printf("]\r");
+    ctx->o_pct = pct;
+  }
+  /* FIXME: really ? */
+  fflush(stdout);
+}
+
 /* parse each log files specified */
 static void proceed(struct ctx *ctx)
 {
@@ -343,8 +374,11 @@ static void proceed(struct ctx *ctx)
       error(ERR_LOAD,ctx->path[i],0);
 
     /* parse each line */
-    for(line = 1 ; fgets(buf,STRLEN_MAX,fp) ; line++)
+    for(line = 1 ; fgets(buf,STRLEN_MAX,fp) ; line++) {
+      ctx->done += strlen(buf);
       match(buf,line,ctx,ctx->path[i]);
+      show_prog(ctx);
+    }
 
     fclose(fp);
   }
