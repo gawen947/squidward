@@ -1,19 +1,22 @@
 CC=gcc
 RM=rm -f
 INSTALL=install
-OBJS=squidward.o
+SRC=squidward.c config.h
+COMMIT=$(shell ./hash.sh)
+CFLAGS=-std=c99 -O2
 PREF=/usr/local/
 BIN=$(PREF)bin/
 SHARE=$(PREF)share/squidward/
 
-squidward : $(OBJ) config.h
+all: squidward
+
+squidward: $(SRC)
+	@echo COMPILING 
+	@$(CC) -DHAVE_CONFIG="1" -DCOMMIT="\"$(COMMIT)\"" $(CFLAGS) $^ -o $@
+	@echo ... done.
 .PHONY : clean install
 
-config.h :
-	echo "#define SRS_PATH \"$(SHARE)default.srs\"" > $@ 
-
 clean:
-	$(RM) config.h
 	$(RM) $(OBJ) squidward
 
 install:

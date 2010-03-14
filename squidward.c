@@ -26,10 +26,15 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#ifdef HAVE_CONFIG
 #include "config.h"
+#endif /* HAVE_CONFIG */
 
 #define VERSION      "0.1.5-git"
 #define PACKAGE      "squidward"
+#ifndef COMMIT
+#define COMMIT "(unknown)"
+#endif /* COMMIT */
 
 #ifndef SRS_PATH
 #define SRS_PATH     "/usr/local/share/squidward/default.srs"
@@ -641,7 +646,7 @@ static void cmdline(int argc, char *argv[], struct ctx *ctx)
       break;
     switch(c) {
       case 'V':
-        printf(PACKAGE "-" VERSION "\n");
+        printf(PACKAGE "-" VERSION " (commit:" COMMIT ")\n");
         exit(EXIT_SUCCESS);
       case 'H':
         ctx->human = true;
