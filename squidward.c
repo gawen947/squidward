@@ -329,29 +329,30 @@ static void match(char *buf, unsigned int line, struct ctx *ctx,
 /* show parsing progression*/
 static void show_prog(struct ctx *ctx)
 {
-  size_t pct,space;
+  size_t space;
+  unsigned long long pct;
+
   if(!ctx->progress)
     return;
   if(!ctx->human) {
     printf("%d/%d\r",ctx->done,ctx->size);
     return;
   }
-
+  
   pct = (100 * ctx->done) / ctx->size;
   if(pct > ctx->o_pct) {
     ctx->o_pct = pct;
     space = 100 - pct;
-    printf("%d%% [",pct);
+    printf("%3d%% [",pct);
     while(pct--)
       printf("=");
     printf(">");
     while(space--)
       printf(" ");
     printf("]\r");
-    ctx->o_pct = pct;
+    /* FIXME: really ? */
+    fflush(stdout);
   }
-  /* FIXME: really ? */
-  fflush(stdout);
 }
 
 /* parse each log files specified */
