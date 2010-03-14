@@ -350,8 +350,8 @@ static void show_prog(struct ctx *ctx)
     while(space--)
       printf(" ");
     printf("]\r");
-    /* FIXME: really ? */
     fflush(stdout);
+    /* FIXME: clear line on finish */
   }
 }
 
