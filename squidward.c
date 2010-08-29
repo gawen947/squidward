@@ -21,6 +21,9 @@
 #include <string.h>
 #include <math.h>
 #include <getopt.h>
+#include <sysexits.h>
+#include <errno.h>
+#include <err.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -44,7 +47,6 @@ enum max   { STRLEN_MAX = 8192, SLTK_MAX = 5, SRTK_MAX = 2 };
 enum sltk  { SLTK_MSEC = 1, SLTK_SRS = 3, SLTK_SZ = 4 };
 enum srtk  { SRTK_SRS, SRTK_TYPE };
 enum color { CL_RESET, CL_SRS = 31, CL_NAME = 0, CL_VALUE = 1, CL_TITLE = 32 };
-enum error { ERR_PARSE, ERR_MEMORY, ERR_LOAD };
 
 #define PCT_EPS 1.
 
@@ -122,38 +124,14 @@ struct prefix
   unsigned long long value; /* factor */
 };
 
-/* error handling */
-static void error(int error, const char * path, unsigned int line)
-{
-  switch(error) {
-    case ERR_PARSE:
-      fprintf(stderr,"In \"%s\" parse error on line %d\n",
-              path,line);
-      break;
-    case ERR_MEMORY:
-      fprintf(stderr,"L%d(%s) Out of memory\n",
-              line,path);
-      break;
-    case ERR_LOAD:
-      fprintf(stderr,"Loading \"%s\" : ",path);
-      perror(NULL);
-      break;
-    default:
-      fprintf(stderr,"Unknown error %x (%s-%d)\n",error,path,line);
-      break;
-  }
-  exit(EXIT_FAILURE);
-}
-
-static void *_xmalloc(size_t size, unsigned int line)
+static void *xmalloc(size_t size)
 {
   register void *mblk = malloc(size);
   if(mblk)
     return mblk;
-  error(ERR_MEMORY, __FILE__, line);
+  errx(EX_OSERR, "Out of memory");
   return NULL; /* avoid a warning from the compiler */
 }
-#define xmalloc(size) _xmalloc(size,__LINE__)
 
 /* split a string into an array of token */
 static size_t tokenize(char *str, char **token, const char *sep, size_t size)
@@ -209,8 +187,12 @@ static void parse_srs(char *buf, unsigned int line, struct ctx *ctx)
   char *token[SRTK_MAX];
   size_t tked = tokenize(buf,token," \t\n",SRTK_MAX);
   char *tk_srs,*tk_type;
-  if(!assert_srtk(token,tked))
-    error(ERR_PARSE,ctx->srspath,line);
+
+  if(!assert_srtk(token,tked)) {
+    warnx("In \"%s\" parse error on line %d",ctx->srspath,line);
+    return;
+  }
+
   tk_srs  = token[SRTK_SRS];  /* squid request status */
   tk_type = token[SRTK_TYPE]; /* type name */
 
@@ -231,11 +213,12 @@ static void parse_srs(char *buf, unsigned int line, struct ctx *ctx)
 static void load_ctx(struct ctx *ctx)
 {
   FILE *fp = fopen(ctx->srspath,"r");
+
   if(!fp)
-    error(ERR_LOAD,ctx->srspath,0);
-  char buf[STRLEN_MAX];
+    err(EX_OSFILE,"Loading \"%s\"",ctx->srspath);
 
   /* parse each line */
+  char buf[STRLEN_MAX];
   register unsigned int line;
   for(line = 1 ; fgets(buf,STRLEN_MAX,fp) ; line++)
     parse_srs(buf,line,ctx);
@@ -308,14 +291,19 @@ static void match(char *buf, unsigned int line, struct ctx *ctx,
   char *tk_srs;
   size_t tked = tokenize(buf,token," \t",SLTK_MAX);
   unsigned long tk_sz, tk_msec;
-  if(!assert_sltk(token,tked))
-    error(ERR_PARSE,path,line);
+  if(!assert_sltk(token,tked)) {
+    warnx("In \"%s\" parse error on line %d",path,line);
+    return;
+  }
+
   tk_srs  = strtok(token[SLTK_SRS],"/"); /* squid request status */
   tk_sz   = atoi(token[SLTK_SZ]);        /* request size */
   tk_msec = atoi(token[SLTK_MSEC]);      /* request time */
 
-  if(!tk_srs)
-    error(ERR_PARSE,path,line);
+  if(!tk_srs) {
+    warnx("In \"%s\" parse error on line %d",path,line);
+    return;
+  }
 
   /* append request to the first matching stat */
   struct stats *i;
@@ -343,7 +331,7 @@ static void show_prog(struct ctx *ctx)
     printf("%d/%d\r",ctx->done,ctx->size);
     return;
   }
-  
+
   pct = (100 * ctx->done) / ctx->size;
   if(pct > ctx->o_pct) {
     ctx->o_pct = pct;
@@ -377,7 +365,7 @@ static void proceed(struct ctx *ctx)
   for(i = 0 ; i < ctx->npath ; i++) {
     fp = fopen(ctx->path[i],"r");
     if(!fp)
-      error(ERR_LOAD,ctx->path[i],0);
+      err(EX_OSFILE,"Loading \"%s\"",ctx->path[i]);
 
     /* parse each line */
     for(line = 1 ; fgets(buf,STRLEN_MAX,fp) ; line++) {
@@ -674,7 +662,7 @@ static void cmdline(int argc, char *argv[], struct ctx *ctx)
         /* display usage */
         fprintf(stderr,"Usage: %s [OPTIONS] [FILES]\n", ctx->progname);
         max = 0;
-        for(opt = opts ; opt->name; opt++) {
+        for(opt = opts ; opt->name ; opt++) {
           size = strlen(opt->name);
           if(size > max)
             max = size;
