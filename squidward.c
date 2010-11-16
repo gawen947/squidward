@@ -319,7 +319,7 @@ static void match(char *buf, unsigned int line, struct ctx *ctx,
   append(i,tk_sz,tk_msec);
 }
 
-/* show parsing progression*/
+/* show parsing progression */
 static void show_prog(struct ctx *ctx)
 {
   size_t space;

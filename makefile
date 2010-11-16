@@ -1,15 +1,15 @@
 include commands.mk
 
-CFLAGS  := -std=c99 -O2 -fPIC -Wall
+CFLAGS  := -std=c90 -O2 -fPIC -Wall
 LDFLAGS := 
 
 SRC  = $(wildcard *.c)
 OBJ  = $(foreach obj, $(SRC:.c=.o), $(notdir $(obj)))
 DEP  = $(SRC:.c=.d)
 
-PREFIX    ?= /usr/local
-LOCALEDIR ?= $(PREFIX)/share/locale
-BINDIR    ?= $(PREFIX)/bin
+PREFIX  ?= /usr/local
+DATADIR ?= $(PREFIX)/share/squidward
+BINDIR  ?= $(PREFIX)/bin
 
 ifdef DEBUG
 CFLAGS += -ggdb
@@ -35,12 +35,14 @@ clean:
 	$(RM) $(OBJ)
 	$(RM) squidward
 
-install: $(install-locales)
-	$(MKDIR) -p $(BINDIR)
+install:
+	$(MKDIR) $(DATADIR)
+	$(INSTALL_DATA) default.srs $(DATADIR)
 	$(INSTALL_PROGRAM) squidward $(BINDIR)
 
-uninstall: $(uninstall-locales)
-	$(RM) $(BINDIR)/squidward.so
+uninstall:
+	$(RM) $(BINDIR)/squidward
+	$(RM) $(DATADIR)/default.srs
 
 -include $(DEP)
 

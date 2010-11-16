@@ -1,6 +1,7 @@
 * David Hauweele <david.hauweele@gmail.com>
   - Fix possible NULL pointer dereference in file parsing
   - Fix possible stack overflow in cleanup
+  - New makefile
 
 * Sat Jan 24 2009 David Hauweele <david.hauweele@gmail.com>
   - Load squid request status and types from an external file
