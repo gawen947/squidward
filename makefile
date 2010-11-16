@@ -1,25 +1,46 @@
-CC=gcc
-RM=rm -f
-INSTALL=install
-SRC=squidward.c config.h
-COMMIT=$(shell ./hash.sh)
-CFLAGS=-std=c99 -O2
-PREF=/usr/local/
-BIN=$(PREF)bin/
-SHARE=$(PREF)share/squidward/
+include commands.mk
+
+CFLAGS  := -std=c99 -O2 -fPIC -Wall
+LDFLAGS := 
+
+SRC  = $(wildcard *.c)
+OBJ  = $(foreach obj, $(SRC:.c=.o), $(notdir $(obj)))
+DEP  = $(SRC:.c=.d)
+
+PREFIX    ?= /usr/local
+LOCALEDIR ?= $(PREFIX)/share/locale
+BINDIR    ?= $(PREFIX)/bin
+
+ifdef DEBUG
+CFLAGS += -ggdb
+endif
+
+commit = $(shell ./hash.sh)
+ifneq ($(commit), UNKNOWN)
+CFLAGS += -DCOMMIT="\"$(commit)\""
+endif
+
+.PHONY: all clean
 
 all: squidward
 
-squidward: $(SRC)
-	@echo COMPILING 
-	@$(CC) -DHAVE_CONFIG="1" -DCOMMIT="\"$(COMMIT)\"" $(CFLAGS) $^ -o $@
-	@echo ... done.
-.PHONY : clean install
+squidward: $(OBJ)
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) -Wp,-MMD,$*.d -c $(CFLAGS) -o $@ $< 
 
 clean:
-	$(RM) $(OBJ) squidward
+	$(RM) $(DEP)
+	$(RM) $(OBJ)
+	$(RM) squidward
 
-install:
-	mkdir -p $(SHARE)
-	$(INSTALL) default.srs $(SHARE)
-	$(INSTALL) squidward $(BIN)
+install: $(install-locales)
+	$(MKDIR) -p $(BINDIR)
+	$(INSTALL_PROGRAM) squidward $(BINDIR)
+
+uninstall: $(uninstall-locales)
+	$(RM) $(BINDIR)/squidward.so
+
+-include $(DEP)
+

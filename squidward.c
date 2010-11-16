@@ -336,7 +336,7 @@ static void show_prog(struct ctx *ctx)
   if(pct > ctx->o_pct) {
     ctx->o_pct = pct;
     space = 100 - pct;
-    printf("%3d%% [",pct);
+    printf("%3lld%% [",pct);
     while(pct--)
       printf("=");
     printf(">");
@@ -344,8 +344,14 @@ static void show_prog(struct ctx *ctx)
       printf(" ");
     printf("]\r");
     fflush(stdout);
-    /* FIXME: clear line on finish */
   }
+}
+
+static void end_prog(struct ctx *ctx)
+{
+  /* FIXME: clear line */
+  if(ctx->progress)
+    printf("\n");
 }
 
 /* parse each log files specified */
@@ -373,6 +379,7 @@ static void proceed(struct ctx *ctx)
       match(buf,line,ctx,ctx->path[i]);
       show_prog(ctx);
     }
+    end_prog(ctx);
 
     fclose(fp);
   }
