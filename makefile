@@ -1,6 +1,6 @@
 include commands.mk
 
-CFLAGS  := -std=c90 -O2 -fPIC -Wall
+CFLAGS  := -std=c99 -O2 -fPIC -Wall
 LDFLAGS := 
 
 SRC  = $(wildcard *.c)
