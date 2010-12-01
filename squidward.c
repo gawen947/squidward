@@ -39,7 +39,7 @@
 # define PACKAGE_VERSION VERSION
 #else
 # define PACKAGE_VERSION VERSION " (commit:" COMMIT ")" /* add git commit
-							   when available */
+                                                           when available */
 #endif
 
 #ifndef SRS_PATH
@@ -132,7 +132,7 @@ static void *xmalloc(size_t size)
   register void *mblk = malloc(size);
   if(mblk)
     return mblk;
-  errx(EX_OSERR, "Out of memory");
+  errx(EX_OSERR, "out of memory");
   return NULL; /* avoid a warning from the compiler */
 }
 
@@ -192,7 +192,8 @@ static void parse_srs(char *buf, unsigned int line, struct ctx *ctx)
   char *tk_srs,*tk_type;
 
   if(!assert_srtk(token,tked)) {
-    warnx("In \"%s\" parse error on line %d",ctx->srspath,line);
+    warnx("parse error at line %d in file ‘%s’: "
+          "Expect %d fields got %d",line,ctx->srspath,SRTK_MAX,tked);
     return;
   }
 
@@ -218,7 +219,7 @@ static void load_ctx(struct ctx *ctx)
   FILE *fp = fopen(ctx->srspath,"r");
 
   if(!fp)
-    err(EX_OSFILE,"Loading \"%s\"",ctx->srspath);
+    err(EX_OSFILE,"could not open ‘%s’",ctx->srspath);
 
   /* parse each line */
   char buf[STRLEN_MAX];
@@ -295,7 +296,8 @@ static void match(char *buf, unsigned int line, struct ctx *ctx,
   size_t tked = tokenize(buf,token," \t",SLTK_MAX);
   unsigned long tk_sz, tk_msec;
   if(!assert_sltk(token,tked)) {
-    warnx("In \"%s\" parse error on line %d",path,line);
+    warnx("parse error at line %d in file ‘%s’: "
+          "Expect %d fields got %d",line,path,SLTK_MAX,tked);
     return;
   }
 
@@ -304,7 +306,8 @@ static void match(char *buf, unsigned int line, struct ctx *ctx,
   tk_msec = atoi(token[SLTK_MSEC]);      /* request time */
 
   if(!tk_srs) {
-    warnx("In \"%s\" parse error on line %d",path,line);
+    warnx("parse error at line %d in file ‘%s’: "
+          "Wrong squid request status",line,path);
     return;
   }
 
@@ -374,7 +377,7 @@ static void proceed(struct ctx *ctx)
   for(i = 0 ; i < ctx->npath ; i++) {
     fp = fopen(ctx->path[i],"r");
     if(!fp)
-      err(EX_OSFILE,"Loading \"%s\"",ctx->path[i]);
+      err(EX_OSFILE,"could not open ‘%s’",ctx->path[i]);
 
     /* parse each line */
     for(line = 1 ; fgets(buf,STRLEN_MAX,fp) ; line++) {
@@ -637,7 +640,7 @@ static void cmdline(int argc, char *argv[], struct ctx *ctx)
   struct stat info;
   struct option *opt;
   const char **hlp;
-  int i,c,max,size;
+  int i,c,max,size,ret = EXIT_FAILURE;
   while(1) {
     c = getopt_long(argc,argv,"VhHS:ceups",opts,NULL);
     if(c == -1)
@@ -668,6 +671,7 @@ static void cmdline(int argc, char *argv[], struct ctx *ctx)
         ctx->stdin = true;
         break;
       case 'h':
+        ret = EXIT_SUCCESS;
       default:
         /* display usage */
         fprintf(stderr,"Usage: %s [OPTIONS] [FILES]\n", ctx->progname);
@@ -677,18 +681,14 @@ static void cmdline(int argc, char *argv[], struct ctx *ctx)
           if(size > max)
             max = size;
         }
-        for(opt = opts, hlp = opts_help ;
-            opt->name ;
-            opt++,hlp++) {
-          fprintf(stderr,"  -%c, --%s",
-                  opt->val, opt->name);
+        for(opt = opts, hlp = opts_help ; opt->name ; opt++, hlp++) {
+          fprintf(stderr,"  -%c, --%s", opt->val, opt->name);
           size = strlen(opt->name);
           for(; size < max ; size++)
-            fprintf(stderr," ");
-          fprintf(stderr," %s\n",*hlp);
+            fputc(' ', stderr);
+          fprintf(stderr, " %s\n",*hlp);
         }
-        /* FIXME: clean exit */
-        exit(EXIT_FAILURE);
+        exit(ret);
     }
   }
 
@@ -697,8 +697,8 @@ static void cmdline(int argc, char *argv[], struct ctx *ctx)
   ctx->npath = argc-optind;
   ctx->path = xmalloc(sizeof(const char *)*ctx->npath);
   for(i = optind ; i < argc ; i++) {
-    /* FIXME: check for error */
-    stat(argv[i],&info);
+    if(stat(argv[i],&info) < 0)
+      err(EX_OSFILE, "cannot stat ‘%s’", argv[i]);
     ctx->size += info.st_size;
     ctx->path[i-optind] = argv[i];
   }
