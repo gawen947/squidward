@@ -33,7 +33,7 @@
 #include "config.h"
 #endif /* HAVE_CONFIG */
 
-#define VERSION      "0.1.5"
+#define VERSION      "0.1.6-git"
 #define PACKAGE      "squidward"
 #ifndef COMMIT
 # define PACKAGE_VERSION VERSION
