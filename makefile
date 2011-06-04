@@ -1,7 +1,7 @@
 include commands.mk
 
-CFLAGS  := -std=c90 -O2 -fPIC -Wall
-LDFLAGS := 
+CFLAGS  := -std=c99 -O2 -fPIC -Wall
+LDFLAGS :=
 
 SRC  = $(wildcard *.c)
 OBJ  = $(foreach obj, $(SRC:.c=.o), $(notdir $(obj)))
@@ -12,7 +12,8 @@ DATADIR ?= $(PREFIX)/share/squidward
 BINDIR  ?= $(PREFIX)/bin
 
 ifdef DEBUG
-CFLAGS += -ggdb
+CFLAGS  += -ggdb
+LDFLAGS += -lduma
 endif
 
 commit = $(shell ./hash.sh)

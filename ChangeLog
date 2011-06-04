@@ -1,3 +1,10 @@
+* Wen Dec 01 2010 David Hauweele <david.hauweele@gmail.com>
+  - Fix compilation error with gcc <= 4.4
+  - Checks stat error when loading
+  - Exits success with --help option
+  - Exits failure with an invalid option
+  - Release 0.1.6
+
 * Tue Nov 16 2010 David Hauweele <david.hauweele@gmail.com>
   - Fix possible NULL pointer dereference in file parsing
   - Fix possible stack overflow in cleanup
