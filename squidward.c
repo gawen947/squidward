@@ -15,6 +15,8 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 
+#define _POSIX_C_SOURCE 201112L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -23,6 +25,7 @@
 #include <getopt.h>
 #include <sysexits.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <err.h>
 
 #include <sys/types.h>
@@ -375,9 +378,16 @@ static void proceed(struct ctx *ctx)
 
   /* proceed each files for parsing */
   for(i = 0 ; i < ctx->npath ; i++) {
+    int fd;
+
     fp = fopen(ctx->path[i],"r");
     if(!fp)
       err(EX_OSFILE,"could not open ‘%s’",ctx->path[i]);
+
+    /* setup sequential read */
+    fd = fileno(fp);
+    posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
+    posix_fadvise(fd, 0, 0, POSIX_FADV_WILLNEED);
 
     /* parse each line */
     for(line = 1 ; fgets(buf,STRLEN_MAX,fp) ; line++) {
